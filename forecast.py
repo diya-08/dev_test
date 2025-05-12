@@ -6,8 +6,23 @@ from prophet import Prophet
 
 def load_data(filepath: str) -> pd.DataFrame:
     """Load and return weather dataset from a CSV file."""
-    df = pd.read_csv(filepath)
-    df['ds'] = pd.to_datetime(df['ds'])
+    # Ensure that the CSV file exists
+    try:
+        df = pd.read_csv(filepath)
+    except FileNotFoundError:
+        raise FileNotFoundError("The CSV file does not exist.")
+
+    # Raise KeyErrors for each column if the CSV file does not contain them
+    if 'ds' not in df.columns:
+        raise KeyError("The CSV file does not contain the 'ds' column.")
+    if 'temperature_celsius' not in df.columns:
+        raise KeyError("The CSV file does not contain the 'temperature_celsius' column.")
+    if 'humidity' not in df.columns:
+        raise KeyError("The CSV file does not contain the 'humidity' column.")
+
+    # Ensure that the 'ds' column is a valid datetime format, if not it will return 'NaT'
+    df['ds'] = pd.to_datetime(df['ds'], errors='coerce')
+
     return df
 
 

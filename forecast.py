@@ -26,14 +26,73 @@ def load_data(filepath: str) -> pd.DataFrame:
     return df
 
 
-def train_model(df: pd.DataFrame) -> Prophet:
+def train_model(df: pd.DataFrame, use_regressor: bool = False, tuned_model: bool = False) -> Prophet:
     """Train a basic Prophet model. Extend with tuning if needed."""
     model = Prophet()
 
     # TODO: Add external regressor  humidity
+    if use_regressor:
+        model.add_regressor('humidity')
     # TODO: Replace with tuned Prophet model using Optuna
+    if tuned_model:
+        possible_parameters = [
+            # The additive seasonality mode: the overall
+            # weather pattern is not going to change much over time (stable trend).
+            # Hence, we don't expect any big shifts in the usual weather patterns.
+            {'changepoint_prior_scale': 0.01, 'seasonality_prior_scale': 1.0, 'seasonality_mode': 'additive'},
+            # The multiplicative seasonality mode: the overall weather pattern to
+            # change more easily over time (flexible trend).
+            # Hence, we might expect bigger shifts in weather patterns maybe because of climate change, for example.
+            {'changepoint_prior_scale': 0.1, 'seasonality_prior_scale': 5.0, 'seasonality_mode': 'multiplicative'}
+        ]
 
-    model.fit(df)
+        # Setting the Mean Absolute Percentage Error to infinity because the error will be smaller than infinity
+        best_mape = float('inf')
+        # Created an empty dictionary that will store the set that had the best results for best_mape (i.e: the lowest error)
+        best_parameters = {}
+
+        for parameter_set in possible_parameters:
+            # Created a temporary Prophet model with three parameters: 'changepoint_prior_scale', 'seasonality_prior_scale', 'seasonality_mode'
+            temporary_model = Prophet(
+                changepoint_prior_scale = parameter_set['changepoint_prior_scale'],
+                seasonality_prior_scale = parameter_set['seasonality_prior_scale'],
+                seasonality_mode = parameter_set['seasonality_mode']
+            )
+            # Added the humidity regressor for the temporary model if it is selected
+            if use_regressor:
+                temporary_model.add_regressor('humidity')
+
+            # Trains the temporary model: The independent/input variable is 'ds' column and the dependent/target variable is 'y' 
+            # which is 'temperature_celsius' column and the 'humidity' column will be added if 'use_regressor' is 'True'
+            temporary_model.fit(df[['ds', 'y'] + (['humidity'] if use_regressor else [])])
+            # Performs cross validation on the temporary model
+            df_cross_validation = cross_validation(temporary_model, initial='210 days', period='30 days', horizon='30 days', parallel='processes')
+            # Gives performance metrics including MAPE
+            df_performance_metrics = performance_metrics(df_cross_validation)
+            # Calculates the mean of the MAPE values
+            current_mape = df_performance_metrics['mape'].mean()
+
+            print(f"The attempted parameters: {parameter_set}, MAPE: {current_mape}")
+
+            # Finds the lowest Mean Average Percentage Error and tracks the best parameters
+            if current_mape < best_mape:
+                best_mape = current_mape
+                best_parameters = parameter_set
+
+        # Prints out and creates the final model with the best parameters and the Mean Average Percentage Error
+        print(f"The best parameters: {best_parameters} MAPE: {best_mape}")
+        model = Prophet(
+                changepoint_prior_scale = best_parameters['changepoint_prior_scale'],
+                seasonality_prior_scale = best_parameters['seasonality_prior_scale'],
+                seasonality_mode = best_parameters['seasonality_mode']
+        )
+
+        # Added the humidity regressor for the final model if it is selected
+        if use_regressor:
+            model.add_regressor('humidity')
+
+    # Trains the final model
+    model.fit(df[['ds', 'y'] + (['humidity'] if use_regressor else [])])
     return model
 
 

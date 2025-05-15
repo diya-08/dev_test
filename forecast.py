@@ -59,6 +59,14 @@ def train_model(df: pd.DataFrame, use_regressor: bool = False, tuned_model: bool
                 seasonality_prior_scale = parameter_set['seasonality_prior_scale'],
                 seasonality_mode = parameter_set['seasonality_mode']
             )
+
+            # South African holidays added to the temporary model
+            temporary_model.add_country_holidays(country_name='ZA')
+
+            # Seasonalities added to the temporary model
+            temporary_model.add_seasonality(name='monthly', period=30.5, fourier_order=5)
+            temporary_model.add_seasonality(name='weekly', period=7, fourier_order=3)
+            
             # Added the humidity regressor for the temporary model if it is selected
             if use_regressor:
                 temporary_model.add_regressor('humidity')
@@ -87,6 +95,13 @@ def train_model(df: pd.DataFrame, use_regressor: bool = False, tuned_model: bool
                 seasonality_prior_scale = best_parameters['seasonality_prior_scale'],
                 seasonality_mode = best_parameters['seasonality_mode']
         )
+
+        # South African holidays added to the final model
+        model.add_country_holidays(country_name='ZA')
+
+        # Seasonalities added to the final model
+        model.add_seasonality(name='monthly', period=30.5, fourier_order=5)
+        model.add_seasonality(name='weekly', period=7, fourier_order=3)
 
         # Added the humidity regressor for the final model if it is selected
         if use_regressor:

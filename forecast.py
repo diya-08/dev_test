@@ -2,6 +2,7 @@
 import pandas as pd
 import argparse
 from prophet import Prophet
+import matplotlib.pyplot as plt
 
 
 def load_data(filepath: str) -> pd.DataFrame:
@@ -96,11 +97,17 @@ def train_model(df: pd.DataFrame, use_regressor: bool = False, tuned_model: bool
     return model
 
 
-def make_future_dataframe(model: Prophet, df: pd.DataFrame, periods: int) -> pd.DataFrame:
+def make_future_dataframe(model: Prophet, df: pd.DataFrame, periods: int, use_regressor: bool = False) -> pd.DataFrame:
     """Create future dataframe for forecasting."""
     future = model.make_future_dataframe(periods=periods)
 
     # TODO: Add regressor values to future dataframe if used
+
+    # Creates a column in the 'future' dataframe called 'humidity' 
+    # and fills it with the average humidity value that 
+    # was calculated from the historical data
+    if use_regressor:
+    future['humidity'] = df['humidity'].mean()
 
     return future
 
@@ -108,15 +115,56 @@ def make_future_dataframe(model: Prophet, df: pd.DataFrame, periods: int) -> pd.
 def generate_forecast(model: Prophet, future: pd.DataFrame) -> pd.DataFrame:
     """Generate forecast using the model."""
     forecast = model.predict(future)
+
+    # Raise ValueErrors for the missing forecast columns
+    if 'ds' not in forecast.columns:
+        raise ValueError("The 'ds' forecast column is missing.")
+    if 'yhat' not in forecast.columns:
+        raise ValueError("The 'yhat' forecast column is missing.")
+    if 'yhat_lower' not in forecast.columns:
+        raise ValueError("The 'yhat_lower' forecast column is missing.")
+    if 'yhat_upper' not in forecast.columns:
+        raise ValueError("The 'yhat_upper' forecast column is missing.")
+
     return forecast
 
 
-def plot_forecast(df: pd.DataFrame, forecast: pd.DataFrame):
+def plot_forecast(df: pd.DataFrame, forecast: pd.DataFrame, output_path: str = None):
     """Visualize the forecast vs. actuals.
 
     TODO: Implement this function to plot results using matplotlib or plotly
     """
-    pass
+
+    marker_colour_actual = 'aquamarine'
+    line_colour_forecast = 'red'
+    fill_colour = 'lightcoral'
+    
+    # Create a new figure with a defined size
+    plt.figure(figsize=(10, 6))
+
+    # Plot observed historical data values as 'o'
+    plt.plot(df['ds'], df['y'], marker='o', color=marker_colour_actual, label='Actual Temps')
+
+    # Plot the forecasted values as a line '-'
+    plt.plot(forecast['ds'], forecast['yhat'], linestyle='-', color=line_colour_forecast, label='Predicted Temps')
+
+    # Shade the area between lower and upper prediction intervals and added a label 'uncertainty' for the fill area
+    plt.fill_between(forecast['ds'], forecast['yhat_lower'], forecast['yhat_upper'], color=fill_colour, alpha=0.5, label='Uncertainty')
+
+    # Labelled the x and y axes, added a title and displayed the legend to the plot
+    plt.xlabel('Date', fontsize=14, fontweight = 'bold')
+    plt.ylabel('Temperature (Degrees Celsius)', fontsize=14, fontweight = 'bold')
+    plt.title('Weather Forecast', fontsize=16, fontweight = 'bold')
+    plt.legend()
+
+    # Adjusts the labels and title to fit neatly
+    plt.tight_layout()
+
+    # If an output path is provided, it will save the figure otherwise it will display the figure
+    if output_path:
+        plt.savefig(output_path)
+    else:
+        plt.show()
 
 
 def main():

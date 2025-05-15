@@ -2,7 +2,10 @@
 import pandas as pd
 import argparse
 from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
+import optuna
 import matplotlib.pyplot as plt
+from prophet.plot import plot_plotly, plot_components_plotly
 
 
 def load_data(filepath: str) -> pd.DataFrame:
@@ -122,7 +125,7 @@ def make_future_dataframe(model: Prophet, df: pd.DataFrame, periods: int, use_re
     # and fills it with the average humidity value that 
     # was calculated from the historical data
     if use_regressor:
-    future['humidity'] = df['humidity'].mean()
+        future['humidity'] = df['humidity'].mean()
 
     return future
 
@@ -158,10 +161,10 @@ def plot_forecast(df: pd.DataFrame, forecast: pd.DataFrame, output_path: str = N
     plt.figure(figsize=(10, 6))
 
     # Plot observed historical data values as 'o'
-    plt.plot(df['ds'], df['y'], marker='o', color=marker_colour_actual, label='Actual Temps')
+    plt.plot(df['ds'], df['y'], marker='o', color=marker_colour_actual, label='Actual Temperature')
 
     # Plot the forecasted values as a line '-'
-    plt.plot(forecast['ds'], forecast['yhat'], linestyle='-', color=line_colour_forecast, label='Predicted Temps')
+    plt.plot(forecast['ds'], forecast['yhat'], linestyle='-', color=line_colour_forecast, label='Predicted Temperature')
 
     # Shade the area between lower and upper prediction intervals and added a label 'uncertainty' for the fill area
     plt.fill_between(forecast['ds'], forecast['yhat_lower'], forecast['yhat_upper'], color=fill_colour, alpha=0.5, label='Uncertainty')
@@ -191,6 +194,20 @@ def main():
     # --output: path to output CSV
     # --use_regressor: flag to use humidity
     # parser.add_argument('--input', ...)
+
+    # Path to the input CSV file
+    parser.add_argument('--input', '-i', required=True, help='Path to input CSV file')
+    # Number of days to forecast (default is 7)
+    parser.add_argument('--periods', '-p', type=int, default=7, help='Forecast horizon in days')
+    # File path to save the forecast CSV output
+    parser.add_argument('--output', '-o', help='Path to output CSV file')
+    # Displays a plot of the forecast
+    parser.add_argument('--plot', action='store_true', help='Whether to plot the forecast')
+    # Includes humidity as an external regressor
+    parser.add_argument('--use_regressor', action='store_true', help='Flag to use humidity as regressor')
+    # Enables Optuna hyperparameter tuning
+    parser.add_argument('--tune', action='store_true', help='Enable hyperparameter tuning with Optuna')
+
     args = parser.parse_args()
 
     df = load_data(args.input)
@@ -198,8 +215,11 @@ def main():
     # Rename the target variable for Prophet
     df.rename(columns={'temperature_celsius': 'y'}, inplace=True)
 
-    model = train_model(df)
-    future = make_future_dataframe(model, df, args.periods)
+    # Trains model with optional regressor and tuning
+    model = train_model(df, use_regressor=args.use_regressor, tuned_model=args.tune)
+    # Future dataframe for forecasting
+    future = make_future_dataframe(model, df, args.periods, use_regressor=args.use_regressor)
+    # Generates the forecast
     forecast = generate_forecast(model, future)
 
     print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
@@ -207,6 +227,19 @@ def main():
     # TODO: Call plot_forecast and save CSV if output provided
     # plot_forecast(df, forecast)
     # forecast.to_csv(args.output)
+
+    if args.output:
+        forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv(args.output, index=False)
+        print("The forecast is saved!")
+
+    if args.plot:
+        plot_path = None
+        if args.output:
+            plot_path = args.output.replace('.csv', '_plot.png')
+        plot_forecast(df, forecast, output_path=plot_path)
+        if plot_path:
+             print("The plot is saved!")
+
 
 
 if __name__ == "__main__":

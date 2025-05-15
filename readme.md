@@ -101,3 +101,21 @@ Good luck!
 | Final Review & Polish    | Final testing, output saving, update README and comments                    | 0.5 hour       |
 
 **Total: 6 hours**
+
+
+## Summary of Changes, improvements and additions
+
+- Added errors='coerce' for the 'ds' column so that any invalid or unparseable dates don't cause crashes. Checked that the required columns are not missing and if it is, it then raises a KeyError.
+
+- The train_model function is responsible for training a Prophet forecasting model on the provided weather data. It initialises a basic Prophet model and adds an external regressor for humidity if specified. There is hyperparameter tuning that can be enabled, which performs cross-validation, gives the performance metrics and it then averages the Mean Absolute Percentage Error (MAPE). It then finds the most optimal hyperparameters and gives the lowest MAPE. Importantly, for both the temporary models during tuning and the final model, South African public holidays and monthly and weekly seasonalities to improve the model's ability to capture local patterns. Finally, the function fits the chosen Prophet model to the input DataFrame, using the 'ds' column as the datestamp and the 'y' column (representing temperature) as the target variable, along with the 'humidity' column if it was selected as a regressor.
+
+- The plot_forecast function takes the actual weather data and the model's predictions, then creates a visual graph showing the past temperatures as aquamarine colour dots and the future predictions as a red colour line with a light coral colour shaded area representing how uncertain the predictions are.
+
+- Completed the CLI arguments.
+
+- Checked that 'ds', 'yhat', 'yhat_lower', 'yhat_upper' are present in predictions and if not, it raises a ValueError.
+
+
+## How to run (On VS Code terminal):
+Example:
+- python forecast.py --input weather.csv --period 7 --tune --use_regressor --plot
